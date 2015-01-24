@@ -1,0 +1,9 @@
+#!/bin/bash
+
+a=`ifconfig | grep mon0`
+if [ -z "$a" ]
+	then
+		echo Hey!
+else
+	echo bad!
+fi

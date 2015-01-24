@@ -1,0 +1,33 @@
+
+# Define total scan duration here. This is the total duration for how long the 
+# ble device would scan and compile the result to send it to the server. 
+# Time must be in seconds.
+
+TotalScanInterval=8;
+
+# Define the date format to be used. Please use the following conventions to 
+# describe year, month etc.
+# %Y year in 2xxx format
+# %m month in 2 digit format
+# %d date in 2 digit format
+# %H hours in 24 hour format
+# %M minutes in 2 digit format
+# %S seconds in 2 digit format
+
+DateFormat="%Y-%m-%dT%H:%M:%S.000Z"
+
+# Web service which accepts the data in json format
+WebServiceAddress="http://www.hajjsense.com/api/trackings"
+
+
+# total numbee of records per file
+NumberOfRecordsPerFile=120000;
+
+
+# Enable offline saving by making the value 1
+OfflineSaving=1;
+
+# Number of records that will be posted per POST request
+NumberOfRecordsPerPost = 500
+
+

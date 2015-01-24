@@ -1,0 +1,26 @@
+CC=gcc
+CFLAGS=-Wall -g
+LDFLAGS=-lconfig -lcurl -lpcap
+SOURCES=wifi-service.c
+OBJECTS=$(SOURCES:.cpp=.o)
+EXECUTABLE=wifi-service
+
+all: $(SOURCES) $(EXECUTABLE) 
+	
+$(EXECUTABLE): $(OBJECTS) 
+	$(CC) $(LDFLAGS) $(OBJECTS) $(CFLAGS) -o $@
+
+.cpp.o:
+	$(CC) $(CFLAGS) $< -o $@
+
+clean:
+	rm -rf $(EXECUTABLE)
+
+install:
+	cp wifi-service.sh /etc/init.d
+	cp wifi-service /usr/sbin/
+	cp wifi-service.cfg /etc/
+	insserv -d /etc/init.d/wifi-service.sh
+
+prepare:
+	apt-get install libcurl4-openssl-dev libconfig-dev

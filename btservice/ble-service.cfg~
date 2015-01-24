@@ -1,0 +1,50 @@
+# Configuration file for ble-service
+
+# Define the scanning window here. This is the period ble device would be 
+# listening on the advertising channel. 
+# Time must be in miliseconds
+
+ScanWindow=100;
+
+# Define the scan interval here. It is the interval between the start of two 
+# consecutive scan windows. Hence it must be greater than or equal to scan 
+# window.
+# Time must be in miliseconds
+
+ScanInterval=100;
+
+# Define total scan duration here. This is the total duration for how long the 
+# ble device would scan and compile the result to send it to the server. 
+# Time must be in seconds.
+
+TotalScanInterval=60;
+
+# Define the date format to be used. Please use the following conventions to 
+# describe year, month etc.
+# %Y year in 2xxx format
+# %m month in 2 digit format
+# %d date in 2 digit format
+# %H hours in 24 hour format
+# %M minutes in 2 digit format
+# %S seconds in 2 digit format
+
+DateFormat="%Y-%m-%dT%H:%M:%S.000Z"
+
+# Web service which accepts the data in json format
+WebServiceAddress="HajjSense-960857465.us-east-1.elb.amazonaws.com/api/trackings"
+
+
+# total numbee of records per file
+NumberOfRecordsPerFile=120000
+
+
+# Enable offline saving by making the value 1
+OfflineSaving=1
+
+# WebService to post the data
+WebServiceBLECountAddress="HajjSense-960857465.us-east-1.elb.amazonaws.com/api/heartbeats"
+
+# Google post
+GooglePost=1
+
+
