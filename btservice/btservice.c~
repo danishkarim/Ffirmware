@@ -21,13 +21,13 @@
 #include <curl/curl.h>
 #include <pthread.h>
 #include <sys/select.h>
-
+#include <sys/poll.h>
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
 
-#define DAEMON_NAME "ble Service"
+#define DAEMON_NAME "BT Service"
 #define DEMONIZE
 
 
@@ -75,15 +75,13 @@ static volatile int signal_received = 0;
 //static GMainLoop *event_loop;
 static char quit = 0;
 
-static char sScanInterval[10], sScanWindow[10], sTotalScanInterval[10];
-
 static char * DateFormat;
 
 static char * WebServiceAddress;
 
 static char cpuid[19];
 
-static int GlobalCount = 0;
+
 
 static int alloc_count = 0;
 
@@ -93,10 +91,12 @@ static int global_file_write_count = 0;
 
 static int NumberOfRecordsPerFile = 0;
 static int OfflineSaving = 0;
-static char * WebServiceBLECountAddress;
-static int GooglePost=0;
+int dev_id = 0;
+
 
 static int NumberOfRecords = 1000;
+
+static int Length = 8;
 
 
 //static uint16_t X_handle;
@@ -117,11 +117,11 @@ struct __attribute__((__packed__)) BTD{
 	long datetime;
 	bdaddr_t address;
 	int8_t rssi;
-	int8_t COD[3];
+	uint8_t COD[3];
 	char * name;
-	struct BLED * next;
+	struct BTD * next;
 
-}
+};
 typedef struct BTD BTDevice;
 
 BTDevice * firstOnSendList;
@@ -172,9 +172,8 @@ static char CoD[11][20][30] = {	{"Miscellaneous"},
 
 		};
 		
-static char * getCOD(char * data){
+static char * getCOD(uint8_t * data){
 	uint8_t d1,d2;
-	int coddata;
 	d1 = data[1];
 	d1 &= 0x1f;
 	d2 = data[0];
@@ -211,71 +210,6 @@ static char * getCOD(char * data){
 
 
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////// General info Section ///////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-static int getAmbientTemp(char * temp){
-	DIR *dir;
-	struct dirent *dirent;
-	char dev[16];      // Dev ID
-	char devPath[128]; // Path to device
-	char buf[256];     // Data from device
-	char tmpData[6];   // Temp C * 1000 reported by device 
-	char path[] = "/sys/bus/w1/devices"; 
-	ssize_t numRead;
-	char notemp[] = "notemp";
-	strcpy(temp,notemp);
-	dir = opendir (path);
-	if (dir != NULL){
-		while ((dirent = readdir (dir)))
-		if (dirent->d_type == DT_LNK && 
-			strstr(dirent->d_name, "28-") != NULL) { 
-			strcpy(dev, dirent->d_name);
-//			syslog(LOG_INFO,"Device found at %s", dev);
-		}
-		(void) closedir (dir);
-    }
-	else{
-		perror ("Couldn't open the w1 devices directory ");
-		return 1;
-	}
-	sprintf(devPath, "%s/%s/w1_slave", path, dev);
-	int fd = open(devPath, O_RDONLY);
-	if(-1 == fd){
-		perror ("Couldn't open the w1 device.");
-		return 1;
-	}
-	while((numRead = read(fd, buf, 256)) > 0) {
-		strncpy(tmpData, strstr(buf, "t=") + 2, 5);
-		strncpy(temp,tmpData,2);
-		temp[2] = '.';
-		strncpy(&temp[3],&tmpData[2],3);	
-	}
-	close(fd);
-	return 0;
-}
-
-static void getProcessorTemp(char * temp){
-	    FILE *fptr;
-		char buff[10];
-        fptr = fopen("/sys/class/thermal/thermal_zone0/temp","r");
-		if(fptr){
-	        fscanf(fptr,"%s",buff);
-			strncpy(temp,buff,2);
-			temp[2] = '.';
-			strncpy(&temp[3],&buff[2],3);
-			temp[6] = '\0';
-			fclose(fptr);
-		}else{
-			temp[0] = '\0';
-		}
-
-        
-}
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////// Data Saving Section ////////////////////////////////////////////////
@@ -377,129 +311,16 @@ static int sendIndividualDeviceData(char * data, char * WebURL, int debug){
 }
 
 
-static int sendData(char * date_time,char * count, char * processorTemp, char * ambientTemp){
-	CURL *curl;
-	CURLcode res;
-//	char count[10];
- 
-	struct curl_httppost *formpost=NULL;
-	struct curl_httppost *lastptr=NULL;
-	//struct curl_slist *headerlist=NULL;
-	//static const char buf[] = "Expect:";
-		
-	FILE *f = fopen("/dev/null", "wb");
-
-	curl_global_init(CURL_GLOBAL_ALL);
-
-
-
-// add time 
-//	syslog(LOG_NOTICE,"Uping the data %s",curr->date_time);
-//pthread_mutex_lock(&BLEDevicemutex);
-	curl_formadd(&formpost,
-               &lastptr,
-               CURLFORM_PTRNAME, "entry.2131414051",
-               CURLFORM_PTRCONTENTS, date_time,
-               CURLFORM_END);
-//pthread_mutex_unlock(&BLEDevicemutex);
-//	syslog(LOG_NOTICE,"Uping done time");
-//add cpu id
-//	syslog(LOG_NOTICE,"cpuid %s",cpuid);
-	curl_formadd(&formpost,
-               &lastptr,
-               CURLFORM_PTRNAME, "entry.282589390",
-               CURLFORM_PTRCONTENTS, cpuid,
-               CURLFORM_END);
-//	syslog(LOG_NOTICE,"Uping done cpuid");
-//Globalcount or tags detected
-//	syslog(LOG_NOTICE,"cpuid %s",count);
-	curl_formadd(&formpost,
-               &lastptr,
-               CURLFORM_PTRNAME, "entry.963152313",
-               CURLFORM_PTRCONTENTS, count,
-               CURLFORM_END);
-//	syslog(LOG_NOTICE,"Uping done count");
-//Scanning window
-	curl_formadd(&formpost,
-               &lastptr,
-               CURLFORM_PTRNAME, "entry.905272969",
-               CURLFORM_PTRCONTENTS, sScanWindow,
-               CURLFORM_END);
-//	syslog(LOG_NOTICE,"Uping done scan window");
-//Scanning interval
-	curl_formadd(&formpost,
-               &lastptr,
-               CURLFORM_PTRNAME, "entry.1787824130",
-               CURLFORM_PTRCONTENTS, sScanInterval,
-               CURLFORM_END);
-//	syslog(LOG_NOTICE,"Uping done scan interval");
-//Whole window or total scan interval
-	curl_formadd(&formpost,
-               &lastptr,
-               CURLFORM_PTRNAME, "entry.148908309",
-               CURLFORM_PTRCONTENTS, sTotalScanInterval,
-               CURLFORM_END);
-//	syslog(LOG_NOTICE,"Uping done total interval");
-//Processor temp
-	curl_formadd(&formpost,
-               &lastptr,
-               CURLFORM_PTRNAME, "entry.559761392",
-               CURLFORM_PTRCONTENTS, processorTemp,
-               CURLFORM_END);
-//	syslog(LOG_NOTICE,"Uping done proc temp");
-//Ambient temp
-	curl_formadd(&formpost,
-               &lastptr,
-               CURLFORM_PTRNAME, "entry.823729544",
-               CURLFORM_PTRCONTENTS, ambientTemp,
-               CURLFORM_END);
-	
- 
-	curl = curl_easy_init();
-
-	if(curl) {
-
-		curl_easy_setopt(curl, CURLOPT_POST,1);
-		curl_easy_setopt(curl, CURLOPT_URL, "https://docs.google.com/forms/d/1A3X9CIAWuqVcRj__CRORF963dJrTJPKzmIgC1X2XU2o/formResponse");
-		curl_easy_setopt(curl, CURLOPT_HTTPPOST, formpost);
-
-		curl_easy_setopt(curl, CURLOPT_WRITEDATA, f);
-		curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT ,300); 
-		curl_easy_setopt(curl, CURLOPT_TIMEOUT, 600); //timeout in seconds
-
-
-		res = curl_easy_perform(curl);
-		if(res != CURLE_OK){
-			syslog(LOG_ERR, "curl_easy_perform() failed: %s\n",
-			curl_easy_strerror(res));
-			return 2;
-		}
-
-		curl_easy_cleanup(curl);
-		curl_formfree(formpost);
-		curl_global_cleanup();
-		fclose(f);
-		return 0;
-  	}else{
-		curl_formfree(formpost);
-		curl_global_cleanup();
-		fclose(f);
-		return 1;
-	}
-}
-
 
 static void * uploadData(){
-	BLEDevice * curr;
-	BLEDevice * temporary_curr;
-	nobled * curro;
+	BTDevice * curr;
+	BTDevice * temporary_curr;
 	int i=0;
 	int j = 0;
 	char data[5+450*NUMBEROFRECORDS];
-	char tempData[170];
+	char tempData[450];
 	int d= 0;
-	char date_time[30];
-	char count[13];
+//	char date_time[30];
 	while(!quit){
 		pthread_mutex_lock(&Devicemutex);
 		curr = firstOnSendList;
@@ -525,17 +346,18 @@ static void * uploadData(){
 				loctime=localtime(&curr->datetime);
 				mac = (uint8_t *)&curr->address;
 				strftime (date_time, 29, DateFormat, loctime);
-				sprintf(tempData, "{\"Vendor\":\"\",
-						\"COD\":\"%s\",
-						\"raspberry_ID\":\"%s\",
-						\"RSSI\":%d,
-						\"id\":\"%s\",
-						\"timestamp\":\"%s\",
-						\"DBID\":\"\",
-						\"mac\":\"%02X:%02X:%02X:%02X:%02X:%02X\"},", 
-						getCOD,
+				sprintf(tempData, "{\"Vendor\":\"\","
+						"\"COD\":\"%s\","
+						"\"raspberry_ID\":\"%s\","
+						"\"RSSI\":%d,"
+						"\"id\":\"%s\","
+						"\"timestamp\":\"%s\","
+						"\"DBID\":\"\","
+						"\"mac\":\"%02X:%02X:%02X:%02X:%02X:%02X\"},", 
+						getCOD(curr->COD),
 						cpuid, 
 						curr->rssi,
+						curr->name,
 						date_time,
 						mac[5],	mac[4],mac[3],mac[2],mac[1],mac[0]);
 				strcat(data,tempData);
@@ -574,8 +396,8 @@ static void addToFile(BTDevice * Device){
 	if( OfflineSaving ){
 		openFile();
 		if( fptr ){
-			fwrite(&Device,14,1,fptr);
-			fprintf(fptr,"%s",Device->name);
+			fwrite(Device,14,1,fptr);
+			//fprintf(fptr,"%s",Device->name);
 		}
 	}
 	
@@ -583,8 +405,7 @@ static void addToFile(BTDevice * Device){
 //adds individual devices 
 static void add_device_to_list(	inquiry_info_with_rssi * info_rssi ){
 	BTDevice * curr;
-	int8_t rssi;	
-	curr = (BTevice *) malloc(sizeof(BTDevice));
+	curr = (BTDevice *) malloc(sizeof(BTDevice));
 	if (curr){
 		curr->next=NULL;
 		memcpy(&curr->address,&info_rssi->bdaddr,sizeof(bdaddr_t));
@@ -593,8 +414,9 @@ static void add_device_to_list(	inquiry_info_with_rssi * info_rssi ){
 		curr->COD[0] = info_rssi->dev_class[0];		
 		curr->COD[1] = info_rssi->dev_class[1];
 		curr->COD[2] = info_rssi->dev_class[2];
-		curr->next = firstOnSendList;
-		firstOnSendList = curr;
+		curr->next = firstOnScanList;
+		addToFile(curr);
+		firstOnScanList = curr;
 	}
 }
 int bdaddcmp(bdaddr_t bdaddr1, bdaddr_t bdaddr2){
@@ -629,7 +451,7 @@ static void sigint_handler(int sig){
 
 static void scanner_start()
 {
-	int dev_id, sock = 0;
+	int sock = 0;
 	struct hci_filter flt;
 	inquiry_cp cp;
 	write_inquiry_mode_cp cp1;
@@ -642,12 +464,13 @@ static void scanner_start()
 	struct pollfd p;
 	char name[248] = { 0 };
 	BTDevice * curr;
-	BTDevice * tcurr;
 
-	dev_id = hci_get_route(NULL);
+//	dev_id = hci_get_route(NULL);
+syslog(LOG_NOTICE,"Openingn socket");
 	sock = hci_open_dev( dev_id );
 	if (dev_id < 0 || sock < 0) {
-		perror("Can't open socket");
+		syslog(LOG_NOTICE,"Can't open socket");
+		quit = 1;
 		return;
 	}
 
@@ -656,15 +479,18 @@ static void scanner_start()
 	hci_filter_set_event(EVT_INQUIRY_RESULT, &flt);
 	hci_filter_set_event(EVT_INQUIRY_RESULT_WITH_RSSI, &flt);
 	hci_filter_set_event(EVT_INQUIRY_COMPLETE, &flt);
+syslog(LOG_NOTICE,"applying filter");
 	if (setsockopt(sock, SOL_HCI, HCI_FILTER, &flt, sizeof(flt)) < 0) {
-		perror("Can't set HCI filter");
+		syslog(LOG_NOTICE,"Can't set HCI filter");
+		close(sock);
 		return;
 	}
 while(!quit){
 	cp1.mode = 1;
 if (hci_send_cmd(sock, OGF_HOST_CTL, OCF_WRITE_INQUIRY_MODE, WRITE_INQUIRY_MODE_CP_SIZE, &cp1) < 0) {
 
-		perror("Can't set inquiry mode");
+		syslog(LOG_NOTICE,"Can't set inquiry mode");
+		close(sock);
 		return;
 	}
 
@@ -675,18 +501,19 @@ if (hci_send_cmd(sock, OGF_HOST_CTL, OCF_WRITE_INQUIRY_MODE, WRITE_INQUIRY_MODE_
 	cp.num_rsp = 0;
 	cp.length = Length;
 
-	//syslog(LOG_NOTICE,"Starting inquiry with RSSI...\n");
+//	syslog(LOG_NOTICE,"Starting inquiry with RSSI...\n");
 
 
 if (hci_send_cmd (sock, OGF_LINK_CTL, OCF_INQUIRY, INQUIRY_CP_SIZE, &cp) < 0) {
 
-		perror("Can't start inquiry");
+		syslog(LOG_NOTICE,"Can't start inquiry");
+		close(sock);
 		return;
 	}
 
 	p.fd = sock;
 	p.events = POLLIN | POLLERR | POLLHUP;
-
+	canceled = 0;
 	while(!canceled) {
 		p.revents = 0;
 
@@ -725,15 +552,18 @@ if (hci_send_cmd (sock, OGF_LINK_CTL, OCF_INQUIRY, INQUIRY_CP_SIZE, &cp) < 0) {
 			}
 		}
 	}//while(!cancelled)
+	//syslog(LOG_NOTICE,"Inquiry complete...\n");
 	curr = firstOnScanList;
 	while ( curr ){
-		if (hci_read_remote_name(sock, curr->address, sizeof(name), 
-            						name, 0) < 0)
-        						strcpy(name, "[unknown]");
-		curr->name = (char *)malloc(strlen(name));
+	//syslog(LOG_NOTICE,"Read remote name...\n");
+		if (hci_read_remote_name(sock, &curr->address, sizeof(name),name, 0) < 0)
+   						strcpy(name, "[unknown]");
+//	syslog(LOG_NOTICE,"Read name complete...%s\n",name);
+		curr->name = (char *)malloc(strlen(name) + 1);
 		if(curr->name){
 			strcpy(curr->name,name);
 		}
+		
 		curr = curr->next;
 	}
 	pthread_mutex_lock(&Devicemutex);
@@ -743,9 +573,10 @@ if (hci_send_cmd (sock, OGF_LINK_CTL, OCF_INQUIRY, INQUIRY_CP_SIZE, &cp) < 0) {
 				curr = curr->next;
 			}
 			curr->next = firstOnScanList;
-			firstOnSendList = NULL;
+			firstOnScanList = NULL;
 		} else {
 			firstOnSendList = firstOnScanList;
+			firstOnScanList = NULL;
 		}
 	pthread_mutex_unlock(&Devicemutex);
 	
@@ -755,12 +586,13 @@ if (hci_send_cmd (sock, OGF_LINK_CTL, OCF_INQUIRY, INQUIRY_CP_SIZE, &cp) < 0) {
 
 
 void scan_bluetooth(){
-	int dev_id = HCI_DEVICE_ID;
+	
 	char addr[18];
 	int rc;
 	pthread_t updateThread;
-	nobled * curro;
-	BLEDevice * curr;
+	BTDevice * curr;
+	BTDevice * curro;
+
 
 	memset(addr,0,18);
 //	GError *gerr = NULL;
@@ -783,12 +615,12 @@ void scan_bluetooth(){
 	}
 	pthread_join(updateThread,NULL);
 	syslog (LOG_NOTICE,"Thread Exit");
-	curro = firstOnSend;
+	curro = firstOnScanList;
 	while(curro){	
-		firstOnSend = firstOnSend->next;
+		firstOnScanList = firstOnScanList->next;
 		free(curro);
 		alloc_count--;
-		curro = firstOnSend;
+		curro = firstOnScanList;
 	}
 	curr = firstOnSendList;
 	while(curr){	
@@ -818,8 +650,7 @@ void getprocessorID(){
 int main(int argc, char *argv[]) {
 	
 	config_t cfg;
-	char *config_file_name = "/etc/ble-service.cfg";
-	int ScanInterval, ScanWindow, TotalScanInterval;
+	char *config_file_name = "/etc/btservice.cfg";
 	
 
 
@@ -879,13 +710,22 @@ int main(int argc, char *argv[]) {
 		NumberOfRecords = 1000;
         syslog (LOG_NOTICE,"No NumberOfRecords found in configuration file. Using 1000 ");
 	}
-	   
-    if (config_lookup_int(&cfg, "TotalScanInterval", &TotalScanInterval)){
-        syslog (LOG_NOTICE,"Total Scan Interval : %d", TotalScanInterval);
+
+    if (config_lookup_int(&cfg, "DeviceID", &dev_id)){
+        syslog (LOG_NOTICE,"DeviceID : %d", dev_id);
 	}
     else{
-		TotalScanInterval = 10;
-        syslog (LOG_NOTICE,"No TotalScanInterval found in configuration file. Using 10s ");
+		dev_id = 1;
+        syslog (LOG_NOTICE,"No DeviceID found in the configuration file. Using 1 ");
+	}
+
+	   
+    if (config_lookup_int(&cfg, "Length", &Length)){
+        syslog (LOG_NOTICE,"Length : %d", Length);
+	}
+    else{
+		Length = 8;
+        syslog (LOG_NOTICE,"No Length found in configuration file. Using 8 ");
 	}
 	if (config_lookup_int(&cfg, "OfflineSaving", &OfflineSaving)){
         syslog (LOG_NOTICE,"Offline Saving : %d", OfflineSaving);

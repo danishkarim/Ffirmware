@@ -10,17 +10,6 @@
 #include <bluetooth/hci_lib.h>
 
 
-static char MajorServiceClass[11][20]={"Limited Discovery",
-				"Reserved",
-				"Reserved",
-				"Position",
-				"Networking",
-				"Rendering",
-				"Capturing",
-				"Obj Transfer",
-				"Audio",
-				"Telephony",
-				"Information"};
 static char MajorDeviceClass[11][20]={"Misc",
 				"Computer",
 				"Phone",
@@ -32,36 +21,37 @@ static char MajorDeviceClass[11][20]={"Misc",
 				"Toy",
 				"Health",
 				"Uncatgorized"};
-static char MinorDeviceClass[10] = {1,7,6,0x48,19,0x84,0xc5,6,6,8};
-
-static char CoD[11][19][30]{	{"Miscellaneous"},
+static char MinorDeviceClass[11] = {0,7,6,0x08,19,0x04,0x05,6,6,8,4};
+static char CoD[11][20][30] = {	{"Miscellaneous"},
 				//Computer Major
 				{ "Uncategorised", "Desktop", "Server-class", "Laptop" ,"Handheld (clam)","Palmsized","Wearable","reserved"},
 				//Phone Major
 				{ "Uncategorised","Cellular","Cordless","Smartphone","Wired Modem","ISDN Access","Reserved"},
 				//Lan/Network
-				{ "Fully Available","1-17%%utilized","17-33%%utilized","33-50%%utilized","50-67%%utilized","67-83%%utilized",,"83-99%%utilized","No service","Reserved"},
+				{ "Fully Available","1-17%%utilized","17-33%%utilized","33-50%%utilized","50-67%%utilized","67-83%%utilized","83-99%%utilized","No service","Reserved"},
 				//Audio Video
 				{ "Uncategorized","Wearable Headset","Hands-free","Reserved","Microphone","Loudspeaker","Headphones","Portable Audio","Car Audio","Set-top box","Hifi Audio","VCR","Vdieo Camera","Camcorder","Video Monitor","Video Display","Video Conferencing","Reserved","Gaming/toy","Reserved"},
-				//peripheral
-				{ "Not keyboard/mouse","Keyboard","Pointing Device","Combo keyboard/pointing" },
+ 				//peripheral other
+				{"Uncategorised","Joystick","Gamepad","Remote Control","Sensing Device","Digitizer tablet","Card Reader","Reserved"},
 				
 				//Imaging
 				{"Display","Camera","Scanner","Printer","Reserved"},
-				//Imaging{}
-				{"Uncategorised", "Reserved"},
 				//Wearable
 				{"Wrist Watch","Pager","Jacket","Helmet","Glasses","Reserved"},
 				//Toy
 				{"Robot","Vehicle","Doll/Action Figure","Controller","Game","Reserved"},
 				//Health
 				{"Undefined","BP monitor","Thermometer","Weighing Scale","Glucose Meter","Pulse Oximeter","Heart/Pulse Rate Monitor","Health Data Display","Reserved"},
-				//peripheral other
-				{"Uncategorised","Joystick","Gamepad","Remote Control","Sensing Device","Digitizer tablet","Card Reader","Reserved"},
+				
+				 //peripheral
+				{ "Not keyboard/mouse","Keyboard","Pointing Device","Combo keyboard/pointing" }
+				
+
 		};
 		
 static char * getCOD(char * data){
 	uint8_t d1,d2;
+	int coddata;
 	d1 = data[1];
 	d1 &= 0x1f;
 	d2 = data[0];
@@ -69,9 +59,33 @@ static char * getCOD(char * data){
 	if(d1>9){
 		return MajorDeviceClass[10];
 	}else{
-		if( d1 == 
+		if( d1 == 3 ) {
+		 d2=d2>>3;
+		} 
+		if (d1 == 5){
+		 if (d2 > 0x0f) {
+		  d2 = d2 >> 4;
+		  d1 = 10;
+		 }
+		}
+		if (d1 == 6) {
+		 int i;
+		 char mask=0x04;
+		 for ( i=0;i<4;i++){
+		  if ( d2 & mask ){
+		   break;
+		   }
+		   mask =mask << 1;
+		 }
+		 d2=i;
+		}
+		 if (d2 > MinorDeviceClass[d1] ){
+		  d2 = MinorDeviceClass[d1];
+		 }
+		 return CoD[d1][d2];
 	}
-}	
+}
+
 
 static void print_result1(bdaddr_t *bdaddr, char has_rssi, int rssi,char * name, inquiry_info_with_rssi *info){
 	char addr[18];
@@ -98,9 +112,9 @@ static void print_result1(bdaddr_t *bdaddr, char has_rssi, int rssi,char * name,
 	else
 		printf(" RSSI:n/a");
 	printf(" %s ",name);
-	printf(" %s  %02X %02X %02X",MajorServiceClass[i],info->dev_class[0],info->dev_class[1],info->dev_class[2]);
+	printf(" %s  %02X %02X %02X",getCOD(info->dev_class),info->dev_class[0],info->dev_class[1],info->dev_class[2]);
 	printf("\n");
-	fflush(NULL);	
+	//fflush(NULL);	
 }
 static void print_result(bdaddr_t *bdaddr, char has_rssi, int rssi,char * name)
 {

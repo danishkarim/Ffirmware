@@ -98,6 +98,8 @@ static int GooglePost=0;
 
 static int NumberOfRecords = 1000;
 
+static int DeviceID=0;
+static int dev_id = 0;
 
 //static uint16_t X_handle;
 //static uint16_t Y_handle;
@@ -938,7 +940,7 @@ done:
 }
 
 void scan_ble(int ScanWindow,int ScanInterval, int TotalScanInterval){
-	int dev_id = HCI_DEVICE_ID;
+
 	char addr[18];
 	int rc;
 	pthread_t updateThread;
@@ -1054,6 +1056,13 @@ int main(int argc, char *argv[]) {
     } else {
  
     /* Get the configuration file name. */
+	if (config_lookup_int(&cfg, "DeviceID", &DeviceID)){
+        syslog (LOG_NOTICE,"DeviceID : %d", DeviceID);
+	}
+    else{
+		DeviceID = 0;
+        syslog (LOG_NOTICE,"No DeviceID found in configuration file. Using 0 ");
+	}
 	if (config_lookup_int(&cfg, "NumberOfRecordsPerPost", &NumberOfRecords)){
         syslog (LOG_NOTICE,"Number of records : %d", NumberOfRecords);
 	}
