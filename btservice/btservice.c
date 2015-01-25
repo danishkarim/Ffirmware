@@ -269,6 +269,7 @@ static int sendIndividualDeviceData(char * data, char * WebURL, int debug){
 
 	if(curl) {
 		curl_easy_setopt(curl, CURLOPT_POST,1);
+		curl_easy_setopt(curl, CURLOPT_PORT, 8080); 
 		curl_easy_setopt(curl, CURLOPT_URL,WebURL);
 		curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headerlist);
 
@@ -280,10 +281,11 @@ static int sendIndividualDeviceData(char * data, char * WebURL, int debug){
  		curl_easy_setopt(curl, CURLOPT_WRITEDATA, f);
 
 		res = curl_easy_perform(curl);
+//		syslog(LOG_NOTICE, "curl response %d", res);
 		curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &http_code);
 //		syslog(LOG_NOTICE,"Return code %ld %lu",http_code,http_code);
-		if(http_code != 200){
-	      		syslog(LOG_NOTICE, "curl_easy_perform() failed: %s\n",
+		if(http_code != 200 || res != 0){
+	      	syslog(LOG_NOTICE, "curl_easy_perform() failed: %s\n",
 			curl_easy_strerror(res));
 			curl_easy_cleanup(curl);
 
@@ -340,7 +342,7 @@ static void * uploadData(){
 			//data[0] = '[';
 			//data[1] = 0;
 			curr = temporary_curr;
-			sprintf(data,"{\"Payload length\":\"%d\","
+			sprintf(data,"{\"Payload_lenght\":\"%d\","
 						"\"DeviceID\":\"%s\","
 						"\"Data\":[",
 						i,
@@ -354,7 +356,7 @@ static void * uploadData(){
 				strftime (date_time, 29, DateFormat, loctime);
 				sprintf(tempData, "{\"DateTime\":\"%s\","
 						"\"MAC\":\"%02X:%02X:%02X:%02X:%02X:%02X\","
-						"\"RSSI\":%d\"},", 
+						"\"RSSI\":\"%d\"},", 
 						date_time,
 						mac[5],	mac[4],mac[3],mac[2],mac[1],mac[0],curr->rssi);
 
@@ -386,7 +388,7 @@ static void * uploadData(){
 				for ( j = 0 ; j < i; j++ ){
 					curr = firstOnSendList;	
 					firstOnSendList = firstOnSendList->next;
-					free(curr->name);
+//					free(curr->name);
 					free(curr);
 				}
 				//pthread_mutex_unlock(&BLEDevicemutex);				
@@ -673,9 +675,9 @@ void getprocessorID(){
     while(!feof(fptr)){
         fgets(temp,256,fptr);
     }
-	cpuid[0] = 'B';
-	cpuid[1] = 'T';
-	strncpy(&cpuid[2],&temp[10],16);
+	//cpuid[0] = 'B';
+	//cpuid[1] = 'T';
+	strncpy(cpuid,&temp[10],16);
 	syslog(LOG_INFO, "CPU id : %s",cpuid);
     fclose(fptr);
 }

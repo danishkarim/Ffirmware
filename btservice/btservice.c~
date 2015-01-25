@@ -378,7 +378,7 @@ static void * uploadData(){
 			data[d-1] = ']';
 			data[d] = '}';
 			data[d+1] = 0;
-			syslog(LOG_NOTICE, "d = %s",data);
+//			syslog(LOG_NOTICE, "d = %s",data);
 			if ( d > 10 && sendIndividualDeviceData(data,WebServiceAddress,1) == 0 ){
 //				syslog(LOG_NOTICE, "cleaning up %d records",i);
 				for ( j = 0 ; j < i; j++ ){
@@ -732,8 +732,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	   
-    if (config_lookup_int(&cfg, "ScanLength", &Length)){
-        syslog (LOG_NOTICE,"ScanLength : %d", Length);
+    if (config_lookup_int(&cfg, "Length", &Length)){
+        syslog (LOG_NOTICE,"Length : %d", Length);
 	}
     else{
 		Length = 8;

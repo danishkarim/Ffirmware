@@ -16,7 +16,7 @@ ScanLength=8;
 DateFormat="%Y-%m-%dT%H:%M:%S.000Z"
 
 # Web service which accepts the data in json format
-WebServiceAddress="http://173.236.144.143"
+WebServiceAddress="http://www.hajjsense.com/api/trackings"
 
 
 # total numbee of records per file

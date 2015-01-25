@@ -260,27 +260,51 @@ static void * uploadData(){
 				curr = curr->next;
 				i++;
 			}
-			data[0] = '[';
-			data[1] = 0;
+//			data[0] = '[';
+//			data[1] = 0;
 			curr = firstOnSend;
-
+			sprintf(data,"{\"Payload length\":\"%d\","
+						"\"DeviceID\":\"%s\","
+						"\"Data\":[",
+						i,
+						cpuid);
 			for ( j = 0; j < i ; j++ ){
 				uint8_t *mac;
 				struct tm * loctime;
 				char date_time[30];
 				loctime=localtime(&curr->date_time);
 				strftime (date_time, 29, DateFormat, loctime);
-				sprintf(tempData, "{\"storedAccessPointName\":\"%s\",\"RSSI\":\"%d\",\"date\":\"%s\",\"mac\":\"%02X:%02X:%02X:%02X:%02X:%02X\",\"raspberry_ID\":\"%s\",\"site_ID\":\"-1\"},", curr->AP, curr->rssi,
+				sprintf(tempData, "{"
+									"\"DateTime\":\"%s\","
+									"\"MAC\":\"%02X:%02X:%02X:%02X:%02X:%02X\","
+									"\"RSSI\":\"%d\","
+									"\"AP\":\"%s\","
+									"\"Vendor\":\"\","
+									"},",
 				date_time,
-				curr->mac[0],curr->mac[1],curr->mac[2],curr->mac[3],curr->mac[4],curr->mac[5],cpuid);
-				strcat(data,tempData);
-				curr = curr->next;
-			}
+				curr->mac[0],curr->mac[1],curr->mac[2],curr->mac[3],curr->mac[4],curr->mac[5],
+				curr->rssi,
+				curr->AP);
+
+//				sprintf(tempData, "{\"storedAccessPointName\":\"%s\","
+//									"\"RSSI\":\"%d\","
+//									"\"date\":\"%s\","
+//									"\"mac\":\"%02X:%02X:%02X:%02X:%02X:%02X\","
+//									"\"raspberry_ID\":\"%s\","
+//									"\"site_ID\":\"-1\"},",
+//				curr->AP, curr->rssi,
+//				date_time,
+//				curr->mac[0],curr->mac[1],curr->mac[2],curr->mac[3],curr->mac[4],curr->mac[5],cpuid);
+//				strcat(data,tempData);
+//				curr = curr->next;
+//			}
 			pthread_mutex_unlock(&WIFIDmutex);
 			d = strlen(data);
 			data[d-1] = ']';
+			data[d] = '}';
+			data[d+1] = 0;
 //			syslog (LOG_NOTICE, "%s",data );
-			if ( d > 10 && sendData(data,WebServiceAddress,1) == 0 ){
+			if ( j>0&&d > 100 && sendData(data,WebServiceAddress,1) == 0 ){
 				
 				pthread_mutex_lock(&WIFIDmutex);
 				for ( j = 0 ; j < i; j++ ){
@@ -372,6 +396,7 @@ void addWIFIDevice(const u_char *packet){
 	rssi = packet[0x0e] - 256;
 	fwrite(&rssi,sizeof(int8_t),1,fptr);
 	fwrite(name,sizeof(char),i,fptr);
+	fputc(fptr,0);
 	curr = (WIFIDevice *) malloc(sizeof(WIFIDevice));
 	if (curr){
 		memcpy(curr->mac,&packet[0x1c],6);
