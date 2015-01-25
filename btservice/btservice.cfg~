@@ -1,9 +1,8 @@
-
-# Define total scan duration here. This is the total duration for how long the 
-# ble device would scan and compile the result to send it to the server. 
-# Time must be in seconds.
-
-TotalScanInterval=8;
+# The device id of the bluetooth device to be used
+DeviceID = 1;
+#the scan length, for how long should the scan last before scanning for names. This is 
+#now not relevant as it wont be scanning the names anymore.
+ScanLength=8;
 
 # Define the date format to be used. Please use the following conventions to 
 # describe year, month etc.
@@ -17,7 +16,7 @@ TotalScanInterval=8;
 DateFormat="%Y-%m-%dT%H:%M:%S.000Z"
 
 # Web service which accepts the data in json format
-WebServiceAddress="http://www.hajjsense.com/api/trackings"
+WebServiceAddress="http://173.236.144.143"
 
 
 # total numbee of records per file

@@ -94,7 +94,7 @@ static int OfflineSaving = 0;
 int dev_id = 0;
 
 
-static int NumberOfRecords = 1000;
+static int NumberOfRecords = 50;
 
 static int Length = 8;
 
@@ -248,10 +248,11 @@ static void openFile(){
 static int sendIndividualDeviceData(char * data, char * WebURL, int debug){
 	CURL *curl;
 	CURLcode res;
- 
+	long http_code = 0; 
 
 	struct curl_slist *headerlist = NULL;
 	static const char buf[] = "Expect:";
+	//char response[1000];
 	FILE *f;
 	if(debug)
 	f = fopen("/dev/null", "wb");
@@ -279,8 +280,9 @@ static int sendIndividualDeviceData(char * data, char * WebURL, int debug){
  		curl_easy_setopt(curl, CURLOPT_WRITEDATA, f);
 
 		res = curl_easy_perform(curl);
-		
-		if(res != CURLE_OK){
+		curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &http_code);
+//		syslog(LOG_NOTICE,"Return code %ld %lu",http_code,http_code);
+		if(http_code != 200){
 	      		syslog(LOG_NOTICE, "curl_easy_perform() failed: %s\n",
 			curl_easy_strerror(res));
 			curl_easy_cleanup(curl);
@@ -335,10 +337,14 @@ static void * uploadData(){
 				curr = curr->next;
 				i++;
 			}
-			data[0] = '[';
-			data[1] = 0;
+			//data[0] = '[';
+			//data[1] = 0;
 			curr = temporary_curr;
-
+			sprintf(data,"{\"Payload length\":\"%d\","
+						"\"DeviceID\":\"%s\","
+						"\"Data\":[",
+						i,
+						cpuid);
 			for ( j = 0; j < i ; j++ ){
 				uint8_t *mac;
 				struct tm * loctime;
@@ -346,28 +352,36 @@ static void * uploadData(){
 				loctime=localtime(&curr->datetime);
 				mac = (uint8_t *)&curr->address;
 				strftime (date_time, 29, DateFormat, loctime);
-				sprintf(tempData, "{\"Vendor\":\"\","
-						"\"COD\":\"%s\","
-						"\"raspberry_ID\":\"%s\","
-						"\"RSSI\":%d,"
-						"\"id\":\"%s\","
-						"\"timestamp\":\"%s\","
-						"\"DBID\":\"\","
-						"\"mac\":\"%02X:%02X:%02X:%02X:%02X:%02X\"},", 
-						getCOD(curr->COD),
-						cpuid, 
-						curr->rssi,
-						curr->name,
+				sprintf(tempData, "{\"DateTime\":\"%s\","
+						"\"MAC\":\"%02X:%02X:%02X:%02X:%02X:%02X\","
+						"\"RSSI\":%d\"},", 
 						date_time,
-						mac[5],	mac[4],mac[3],mac[2],mac[1],mac[0]);
+						mac[5],	mac[4],mac[3],mac[2],mac[1],mac[0],curr->rssi);
+
+//				sprintf(tempData, "{\"Vendor\":\"\","
+//						"\"COD\":\"%s\","
+//						"\"raspberry_ID\":\"%s\","
+//						"\"RSSI\":%d,"
+//						"\"id\":\"%s\","
+//						"\"timestamp\":\"%s\","
+//						"\"DBID\":\"\","
+//						"\"mac\":\"%02X:%02X:%02X:%02X:%02X:%02X\"},", 
+//						getCOD(curr->COD),
+//						cpuid, 
+//						curr->rssi,
+//						curr->name,
+//						date_time,
+//						mac[5],	mac[4],mac[3],mac[2],mac[1],mac[0]);
 				strcat(data,tempData);
 				curr = curr->next;
 			}
 			pthread_mutex_unlock(&Devicemutex);
 			d = strlen(data);
 			data[d-1] = ']';
+			data[d] = '}';
+			data[d+1] = 0;
 //			syslog(LOG_NOTICE, "d = %s",data);
-			if ( d > 10 && sendIndividualDeviceData(data,WebServiceAddress,1) == 0 ){
+			if ( d > 100 && j > 0 && (sendIndividualDeviceData(data,WebServiceAddress,0) == 0) ){
 //				syslog(LOG_NOTICE, "cleaning up %d records",i);
 				for ( j = 0 ; j < i; j++ ){
 					curr = firstOnSendList;	
@@ -401,6 +415,23 @@ static void addToFile(BTDevice * Device){
 		}
 	}
 	
+}
+static void add_sample_device(){
+	char mac[] = {0x01,0x02,3,4,5,6};
+	BTDevice * curr;
+	curr = (BTDevice *) malloc(sizeof(BTDevice));
+	if (curr){
+		curr->next=NULL;
+		memcpy(&curr->address,mac,sizeof(mac));
+		curr->rssi = -20;
+		curr->datetime = time(NULL);
+		curr->COD[0] = 01;		
+		curr->COD[1] = 02;
+		curr->COD[2] = 03;
+		curr->next = firstOnScanList;
+		addToFile(curr);
+		firstOnScanList = curr;
+	}
 }
 //adds individual devices 
 static void add_device_to_list(	inquiry_info_with_rssi * info_rssi ){
@@ -566,6 +597,8 @@ if (hci_send_cmd (sock, OGF_LINK_CTL, OCF_INQUIRY, INQUIRY_CP_SIZE, &cp) < 0) {
 //		
 //		curr = curr->next;
 //	}
+	add_sample_device();
+	add_sample_device();
 	pthread_mutex_lock(&Devicemutex);
 		curr = firstOnSendList;
 		if( curr ){
@@ -707,7 +740,7 @@ int main(int argc, char *argv[]) {
         syslog (LOG_NOTICE,"Number of records : %d", NumberOfRecords);
 	}
     else{
-		NumberOfRecords = 1000;
+		NumberOfRecords = 50;
         syslog (LOG_NOTICE,"No NumberOfRecords found in configuration file. Using 1000 ");
 	}
 
@@ -720,8 +753,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	   
-    if (config_lookup_int(&cfg, "Length", &Length)){
-        syslog (LOG_NOTICE,"Length : %d", Length);
+    if (config_lookup_int(&cfg, "ScanLength", &Length)){
+        syslog (LOG_NOTICE,"ScanLength : %d", Length);
 	}
     else{
 		Length = 8;

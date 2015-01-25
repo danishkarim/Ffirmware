@@ -94,7 +94,7 @@ static int OfflineSaving = 0;
 int dev_id = 0;
 
 
-static int NumberOfRecords = 1000;
+static int NumberOfRecords = 50;
 
 static int Length = 8;
 
@@ -338,7 +338,11 @@ static void * uploadData(){
 			data[0] = '[';
 			data[1] = 0;
 			curr = temporary_curr;
-
+			sprintf(data,"{\"Payload length\":\"%d\","
+						"\"DeviceID\":\"%s\","
+						"\"Data\":[",
+						i,
+						cpuid);
 			for ( j = 0; j < i ; j++ ){
 				uint8_t *mac;
 				struct tm * loctime;
@@ -346,27 +350,35 @@ static void * uploadData(){
 				loctime=localtime(&curr->datetime);
 				mac = (uint8_t *)&curr->address;
 				strftime (date_time, 29, DateFormat, loctime);
-				sprintf(tempData, "{\"Vendor\":\"\","
-						"\"COD\":\"%s\","
-						"\"raspberry_ID\":\"%s\","
-						"\"RSSI\":%d,"
-						"\"id\":\"%s\","
-						"\"timestamp\":\"%s\","
-						"\"DBID\":\"\","
-						"\"mac\":\"%02X:%02X:%02X:%02X:%02X:%02X\"},", 
-						getCOD(curr->COD),
-						cpuid, 
-						curr->rssi,
-						curr->name,
+				sprintf(tempData, "{\"DateTime\":\"%s\","
+						"\"MAC\":\"%02X:%02X:%02X:%02X:%02X:%02X\","
+						"\"RSSI\":%d\"},", 
 						date_time,
-						mac[5],	mac[4],mac[3],mac[2],mac[1],mac[0]);
+						mac[5],	mac[4],mac[3],mac[2],mac[1],mac[0],curr->rssi);
+
+//				sprintf(tempData, "{\"Vendor\":\"\","
+//						"\"COD\":\"%s\","
+//						"\"raspberry_ID\":\"%s\","
+//						"\"RSSI\":%d,"
+//						"\"id\":\"%s\","
+//						"\"timestamp\":\"%s\","
+//						"\"DBID\":\"\","
+//						"\"mac\":\"%02X:%02X:%02X:%02X:%02X:%02X\"},", 
+//						getCOD(curr->COD),
+//						cpuid, 
+//						curr->rssi,
+//						curr->name,
+//						date_time,
+//						mac[5],	mac[4],mac[3],mac[2],mac[1],mac[0]);
 				strcat(data,tempData);
 				curr = curr->next;
 			}
 			pthread_mutex_unlock(&Devicemutex);
 			d = strlen(data);
 			data[d-1] = ']';
-//			syslog(LOG_NOTICE, "d = %s",data);
+			data[d] = '}';
+			data[d+1] = 0;
+			syslog(LOG_NOTICE, "d = %s",data);
 			if ( d > 10 && sendIndividualDeviceData(data,WebServiceAddress,1) == 0 ){
 //				syslog(LOG_NOTICE, "cleaning up %d records",i);
 				for ( j = 0 ; j < i; j++ ){
@@ -554,18 +566,18 @@ if (hci_send_cmd (sock, OGF_LINK_CTL, OCF_INQUIRY, INQUIRY_CP_SIZE, &cp) < 0) {
 	}//while(!cancelled)
 	//syslog(LOG_NOTICE,"Inquiry complete...\n");
 	curr = firstOnScanList;
-	while ( curr ){
+//	while ( curr ){
 	//syslog(LOG_NOTICE,"Read remote name...\n");
-		if (hci_read_remote_name(sock, &curr->address, sizeof(name),name, 0) < 0)
-   						strcpy(name, "[unknown]");
+//		if (hci_read_remote_name(sock, &curr->address, sizeof(name),name, 0) < 0)
+//   						strcpy(name, "[unknown]");
 //	syslog(LOG_NOTICE,"Read name complete...%s\n",name);
-		curr->name = (char *)malloc(strlen(name) + 1);
-		if(curr->name){
-			strcpy(curr->name,name);
-		}
-		
-		curr = curr->next;
-	}
+//		curr->name = (char *)malloc(strlen(name) + 1);
+//		if(curr->name){
+//			strcpy(curr->name,name);
+//		}
+//		
+//		curr = curr->next;
+//	}
 	pthread_mutex_lock(&Devicemutex);
 		curr = firstOnSendList;
 		if( curr ){
@@ -707,7 +719,7 @@ int main(int argc, char *argv[]) {
         syslog (LOG_NOTICE,"Number of records : %d", NumberOfRecords);
 	}
     else{
-		NumberOfRecords = 1000;
+		NumberOfRecords = 50;
         syslog (LOG_NOTICE,"No NumberOfRecords found in configuration file. Using 1000 ");
 	}
 
@@ -720,8 +732,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	   
-    if (config_lookup_int(&cfg, "Length", &Length)){
-        syslog (LOG_NOTICE,"Length : %d", Length);
+    if (config_lookup_int(&cfg, "ScanLength", &Length)){
+        syslog (LOG_NOTICE,"ScanLength : %d", Length);
 	}
     else{
 		Length = 8;
