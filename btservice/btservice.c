@@ -599,8 +599,8 @@ if (hci_send_cmd (sock, OGF_LINK_CTL, OCF_INQUIRY, INQUIRY_CP_SIZE, &cp) < 0) {
 //		
 //		curr = curr->next;
 //	}
-	add_sample_device();
-	add_sample_device();
+//	add_sample_device();
+//	add_sample_device();
 	pthread_mutex_lock(&Devicemutex);
 		curr = firstOnSendList;
 		if( curr ){
